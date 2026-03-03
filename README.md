@@ -50,6 +50,7 @@ Backend (Web Service):
   - Optional `YT_DLP_BIN=/opt/render/project/src/server/bin/yt-dlp`
   - Optional `YT_DLP_COOKIES_FILE=/opt/render/project/src/server/cookies.txt`
   - Optional `YT_DLP_COOKIES_B64=<base64 of Netscape cookies.txt>`
+  - Optional `YT_DLP_PROXY=http://user:pass@host:port`
 
 Frontend (Static Site):
 - Root Directory: `client`

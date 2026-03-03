@@ -25,6 +25,7 @@ const ytDlpBinary =
 const ffmpegBinary = process.env.FFMPEG_BIN || ffmpegStaticBinary || 'ffmpeg';
 const ytDlpExtractorArgs =
   process.env.YT_DLP_EXTRACTOR_ARGS || 'youtube:player_client=android,web';
+const ytDlpProxy = process.env.YT_DLP_PROXY || '';
 
 const platformRules = [
   { id: 'youtube', source: 'YouTube', hostContains: ['youtube.com', 'youtu.be'] },
@@ -144,6 +145,7 @@ async function getRuntimeStatus() {
     ytDlpBinary,
     ffmpegBinary,
     extractorArgsConfigured: Boolean(ytDlpExtractorArgs),
+    proxyConfigured: Boolean(ytDlpProxy),
     cookieMode: resolveCookieMode(),
     cookiesResolved: false,
     cookiesFileExists: false,
@@ -170,6 +172,9 @@ async function buildYtDlpBaseArgs() {
   if (ytDlpExtractorArgs) {
     args.push('--extractor-args', ytDlpExtractorArgs);
   }
+  if (ytDlpProxy) {
+    args.push('--proxy', ytDlpProxy);
+  }
   const cookiesFilePath = await resolveCookiesFilePath();
   if (cookiesFilePath) {
     args.push('--cookies', cookiesFilePath);
@@ -183,6 +188,12 @@ function normalizeYtDlpError(error) {
     message.includes('Sign in to confirm you’re not a bot') ||
     message.includes('Use --cookies-from-browser or --cookies')
   ) {
+    const cookieMode = resolveCookieMode();
+    if (cookieMode !== 'none') {
+      return new Error(
+        'Auth cookies are loaded but YouTube still blocked this server request (common on datacenter IPs). Try fresh cookies and consider setting YT_DLP_PROXY.'
+      );
+    }
     return new Error(
       'YouTube currently requires auth cookies for this request. Set YT_DLP_COOKIES_FILE or YT_DLP_COOKIES_B64 on the backend service and redeploy.'
     );
