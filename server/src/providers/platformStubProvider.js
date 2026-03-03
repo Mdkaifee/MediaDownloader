@@ -334,14 +334,15 @@ async function runDownload(sourceUrl, option, workDir) {
   }
 
   const targetHeight = Number(option.videoHeight || 0);
-  const makeArgs = (formatExpr, sortExpr) => {
+  const makeArgs = (formatExpr, sortExpr, mergeToMp4 = true) => {
     const args = [
       ...baseArgs,
       '-f',
-      formatExpr,
-      '--merge-output-format',
-      'mp4'
+      formatExpr
     ];
+    if (mergeToMp4) {
+      args.push('--merge-output-format', 'mp4');
+    }
     if (sortExpr) {
       args.push('-S', sortExpr);
     }
@@ -362,7 +363,9 @@ async function runDownload(sourceUrl, option, workDir) {
   attempts.push(
     makeArgs('bv*+ba/b', 'ext:mp4:m4a'),
     makeArgs('bestvideo+bestaudio/best', null),
-    makeArgs('best', null)
+    makeArgs('best', null),
+    makeArgs('b/bv*+ba', null, false),
+    makeArgs('best', null, false)
   );
 
   let lastError = null;
@@ -420,10 +423,11 @@ const platformStubProvider = {
     }
     const localFilePath = await collectOutputFile(jobDir, option.ext);
     const baseName = sanitizeBaseName(title || path.basename(localFilePath)) || 'media';
+    const actualExt = path.extname(localFilePath).replace('.', '') || option.ext;
 
     return {
       localFilePath,
-      filename: `${baseName}.${option.ext}`,
+      filename: `${baseName}.${actualExt}`,
       deleteAfterSend: true
     };
   }
