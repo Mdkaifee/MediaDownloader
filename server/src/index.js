@@ -32,6 +32,21 @@ function logServer(event, details) {
   console.log(`[MediaDownloader][server][${event}]${payload}`);
 }
 
+function isCookieAuthMessage(message) {
+  return String(message || '').includes('requires auth cookies');
+}
+
+function summarizeToolchain(platform) {
+  if (!platform) return null;
+  return {
+    cookieMode: platform.cookieMode,
+    cookiesResolved: platform.cookiesResolved,
+    cookiesFileExists: platform.cookiesFileExists,
+    hasCookieError: Boolean(platform.cookieError),
+    cookieError: platform.cookieError || null
+  };
+}
+
 app.set('trust proxy', 1);
 app.use(
   cors({
@@ -151,6 +166,13 @@ app.post('/api/analyze', async (req, res) => {
     });
   } catch (error) {
     logServer('analyze:error', { requestId, message: error.message || 'Unexpected error' });
+    if (isCookieAuthMessage(error.message)) {
+      const platform = await getPlatformRuntimeStatus();
+      logServer('analyze:cookie-diagnostics', {
+        requestId,
+        platform: summarizeToolchain(platform)
+      });
+    }
     return res.status(500).json({ error: error.message || 'Unexpected error.' });
   }
 });
@@ -218,6 +240,13 @@ app.post('/api/download-link', async (req, res) => {
     });
   } catch (error) {
     logServer('download-link:error', { requestId, message: error.message || 'Unexpected error' });
+    if (isCookieAuthMessage(error.message)) {
+      const platform = await getPlatformRuntimeStatus();
+      logServer('download-link:cookie-diagnostics', {
+        requestId,
+        platform: summarizeToolchain(platform)
+      });
+    }
     return res.status(500).json({ error: error.message || 'Unexpected error.' });
   }
 });
