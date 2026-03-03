@@ -42,7 +42,7 @@ Note: Render deploy uses `ffmpeg-static` from npm and downloads `yt-dlp` into `s
 
 Backend (Web Service):
 - Root Directory: `.`
-- Build Command: `./render-build.sh`
+- Build Command: `bash ./render-build.sh`
 - Start Command: `npm run start -w server`
 - Environment variables:
   - `CORS_ORIGINS=https://<your-frontend-domain>`
