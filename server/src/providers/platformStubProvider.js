@@ -109,6 +109,11 @@ function normalizeYtDlpError(error) {
       'YouTube currently requires auth cookies for this request. Set YT_DLP_COOKIES_FILE or YT_DLP_COOKIES_B64 on the backend service and redeploy.'
     );
   }
+  if (message.includes('Requested format is not available')) {
+    return new Error(
+      'Selected quality is not available right now. Please fetch options again and try another quality.'
+    );
+  }
   return error instanceof Error ? error : new Error(message);
 }
 
@@ -244,7 +249,8 @@ function buildMp4Options(formats) {
       bitrate: formatBitrateKbps(format.tbr),
       resolution: `${format.height}p`,
       fileSize: formatFileSize(format.filesize || format.filesize_approx),
-      formatId: String(format.format_id)
+      formatId: String(format.format_id),
+      videoHeight: Number(format.height)
     }));
 
   if (options.length > 0) {
@@ -259,7 +265,8 @@ function buildMp4Options(formats) {
       bitrate: null,
       resolution: 'Best',
       fileSize: 'Unknown',
-      formatId: null
+      formatId: null,
+      videoHeight: null
     }
   ];
 }
@@ -326,46 +333,49 @@ async function runDownload(sourceUrl, option, workDir) {
     return;
   }
 
-  const withSelectedFormat = [
-    ...baseArgs,
-    '-f',
-    option.formatId ? `${option.formatId}+bestaudio/best` : 'bestvideo+bestaudio/best',
-    '--merge-output-format',
-    'mp4',
-    '-P',
-    workDir,
-    '-o',
-    '%(title).120s.%(ext)s',
-    sourceUrl
-  ];
-  if (ffmpegLocation) {
-    withSelectedFormat.splice(2, 0, '--ffmpeg-location', ffmpegLocation);
-  }
-
-  try {
-    await runCommand(ytDlpBinary, withSelectedFormat);
-  } catch (error) {
-    if (!option.formatId) {
-      throw error;
-    }
-
-    const fallbackArgs = [
+  const targetHeight = Number(option.videoHeight || 0);
+  const makeArgs = (formatExpr, sortExpr) => {
+    const args = [
       ...baseArgs,
       '-f',
-      'bestvideo+bestaudio/best',
+      formatExpr,
       '--merge-output-format',
-      'mp4',
-      '-P',
-      workDir,
-      '-o',
-      '%(title).120s.%(ext)s',
-      sourceUrl
+      'mp4'
     ];
-    if (ffmpegLocation) {
-      fallbackArgs.splice(2, 0, '--ffmpeg-location', ffmpegLocation);
+    if (sortExpr) {
+      args.push('-S', sortExpr);
     }
-    await runCommand(ytDlpBinary, fallbackArgs);
+    args.push('-P', workDir, '-o', '%(title).120s.%(ext)s', sourceUrl);
+    if (ffmpegLocation) {
+      args.splice(2, 0, '--ffmpeg-location', ffmpegLocation);
+    }
+    return args;
+  };
+
+  const attempts = [];
+  if (targetHeight > 0) {
+    attempts.push(
+      makeArgs('bv*+ba/b', `res:${targetHeight},ext:mp4:m4a`),
+      makeArgs(`bv*[height<=${targetHeight}]+ba/b[height<=${targetHeight}]/b`, 'ext:mp4:m4a')
+    );
   }
+  attempts.push(
+    makeArgs('bv*+ba/b', 'ext:mp4:m4a'),
+    makeArgs('bestvideo+bestaudio/best', null),
+    makeArgs('best', null)
+  );
+
+  let lastError = null;
+  for (const args of attempts) {
+    try {
+      await runCommand(ytDlpBinary, args);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Unable to download media with available formats.');
 }
 
 const platformStubProvider = {
