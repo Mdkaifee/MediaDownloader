@@ -10,7 +10,7 @@ import {
   setDownloadToken,
   setJob
 } from './jobStore.js';
-import { findProvider } from './providers/index.js';
+import { findProvider, getPlatformRuntimeStatus } from './providers/index.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -59,6 +59,14 @@ function buildBaseUrl(req) {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
+});
+
+app.get('/api/debug/toolchain', async (req, res) => {
+  const platform = await getPlatformRuntimeStatus();
+  res.json({
+    ok: true,
+    platform
+  });
 });
 
 app.get('/', (req, res) => {

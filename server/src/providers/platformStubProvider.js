@@ -35,6 +35,26 @@ const platformRules = [
 let toolchainChecked = false;
 let cachedCookiesFilePath = '';
 
+function looksLikeNetscapeCookies(text) {
+  const normalized = String(text || '').trim();
+  if (!normalized) return false;
+  if (normalized.includes('# Netscape HTTP Cookie File')) return true;
+
+  return normalized.split('\n').some((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return false;
+    const cols = trimmed.split('\t');
+    return cols.length >= 7;
+  });
+}
+
+function resolveCookieMode() {
+  if (process.env.YT_DLP_COOKIES_FILE) return 'file';
+  if (process.env.YT_DLP_COOKIES_B64) return 'base64';
+  if (process.env.YT_DLP_COOKIES_TXT) return 'text';
+  return 'none';
+}
+
 function detectPlatform(url) {
   const hostname = new URL(url).hostname.toLowerCase();
   return platformRules.find((rule) =>
@@ -92,13 +112,57 @@ async function resolveCookiesFilePath() {
 
   await fs.mkdir(runtimeConfigRoot, { recursive: true });
   const cookiesFilePath = path.join(runtimeConfigRoot, 'yt-dlp-cookies.txt');
-  const content = cookiesBase64
-    ? Buffer.from(cookiesBase64, 'base64').toString('utf8')
-    : cookiesText;
+  let content = '';
+  if (cookiesBase64) {
+    const sanitized = String(cookiesBase64).replace(/\s+/g, '');
+    const decoded = Buffer.from(sanitized, 'base64').toString('utf8');
+
+    if (looksLikeNetscapeCookies(decoded)) {
+      content = decoded;
+    } else if (looksLikeNetscapeCookies(cookiesBase64)) {
+      content = cookiesBase64;
+    } else {
+      throw new Error(
+        'YT_DLP_COOKIES_B64 does not decode to a valid Netscape cookies file.'
+      );
+    }
+  } else {
+    content = String(cookiesText || '');
+  }
+
+  if (!looksLikeNetscapeCookies(content)) {
+    throw new Error('Cookie content is not in Netscape cookies.txt format.');
+  }
 
   await fs.writeFile(cookiesFilePath, content, { mode: 0o600 });
   cachedCookiesFilePath = cookiesFilePath;
   return cookiesFilePath;
+}
+
+async function getRuntimeStatus() {
+  const status = {
+    ytDlpBinary,
+    ffmpegBinary,
+    extractorArgsConfigured: Boolean(ytDlpExtractorArgs),
+    cookieMode: resolveCookieMode(),
+    cookiesResolved: false,
+    cookiesFileExists: false,
+    cookiesPath: null
+  };
+
+  try {
+    const cookiesFilePath = await resolveCookiesFilePath();
+    if (cookiesFilePath) {
+      status.cookiesResolved = true;
+      status.cookiesPath = cookiesFilePath;
+      await fs.access(cookiesFilePath);
+      status.cookiesFileExists = true;
+    }
+  } catch (error) {
+    status.cookieError = error.message || 'Unknown cookie error';
+  }
+
+  return status;
 }
 
 async function buildYtDlpBaseArgs() {
@@ -444,7 +508,8 @@ const platformStubProvider = {
       filename: `${baseName}.${actualExt}`,
       deleteAfterSend: true
     };
-  }
+  },
+  getRuntimeStatus
 };
 
 export default platformStubProvider;

@@ -116,6 +116,9 @@ Response:
 ### `GET /api/download/:token`
 Downloads a generated local file and then invalidates the token.
 
+### `GET /api/debug/toolchain`
+Returns non-secret runtime diagnostics (`yt-dlp`, `ffmpeg`, cookie mode/path status) to verify deploy configuration.
+
 ## Provider details
 
 File:
