@@ -39,15 +39,16 @@ Install these binaries and keep them on your `PATH`:
 ## Deploy on Render
 
 Backend (Web Service):
-- Root Directory: `media-downloader-starter`
-- Build Command: `npm install`
+- Root Directory: `.`
+- Build Command: `./render-build.sh`
 - Start Command: `npm run start -w server`
 - Environment variables:
   - `CORS_ORIGINS=https://<your-frontend-domain>`
   - Optional `PUBLIC_BASE_URL=https://<your-backend-domain>`
+  - Optional `YT_DLP_BIN=/opt/render/project/src/server/bin/yt-dlp`
 
 Frontend (Static Site):
-- Root Directory: `media-downloader-starter/client`
+- Root Directory: `client`
 - Build Command: `npm install && npm run build`
 - Publish Directory: `dist`
 - Environment variables:
@@ -125,5 +126,3 @@ Current behavior:
 
 ## Legal and compliance
 Only download content you own or have permission to download. Respect each platform's Terms of Service and applicable copyright laws.
-# MediaDownloader
-# MediaDownloader

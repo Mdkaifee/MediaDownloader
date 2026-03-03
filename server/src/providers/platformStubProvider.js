@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const downloadsRoot = path.resolve(__dirname, '../../tmp-downloads/platform');
+const localYtDlpBinary = path.resolve(__dirname, '../../bin/yt-dlp');
+const ytDlpBinary =
+  process.env.YT_DLP_BIN || (existsSync(localYtDlpBinary) ? localYtDlpBinary : 'yt-dlp');
+const ffmpegBinary = process.env.FFMPEG_BIN || 'ffmpeg';
 
 const platformRules = [
   { id: 'youtube', source: 'YouTube', hostContains: ['youtube.com', 'youtu.be'] },
@@ -71,8 +76,16 @@ async function assertBinary(binary, checkArgs, installHint) {
 async function ensureToolchain() {
   if (toolchainChecked) return;
 
-  await assertBinary('yt-dlp', ['--version'], 'Install yt-dlp and restart the server.');
-  await assertBinary('ffmpeg', ['-version'], 'Install ffmpeg and restart the server.');
+  await assertBinary(
+    ytDlpBinary,
+    ['--version'],
+    'Install yt-dlp and restart the server.'
+  );
+  await assertBinary(
+    ffmpegBinary,
+    ['-version'],
+    'Install ffmpeg and restart the server.'
+  );
   toolchainChecked = true;
 }
 
@@ -201,7 +214,7 @@ function buildMp4Options(formats) {
 }
 
 async function fetchMetadata(url) {
-  const { stdout } = await runCommand('yt-dlp', [
+  const { stdout } = await runCommand(ytDlpBinary, [
     '--no-playlist',
     '--no-warnings',
     '-J',
@@ -237,9 +250,12 @@ async function collectOutputFile(workDir, preferredExt) {
 }
 
 async function runDownload(sourceUrl, option, workDir) {
+  const ffmpegLocation =
+    ffmpegBinary.includes('/') ? path.dirname(ffmpegBinary) : null;
+
   if (option.ext === 'mp3') {
     const bitrate = Number(option.audioBitrateKbps || 192);
-    await runCommand('yt-dlp', [
+    const args = [
       '--no-playlist',
       '--no-warnings',
       '-f',
@@ -254,7 +270,11 @@ async function runDownload(sourceUrl, option, workDir) {
       '-o',
       '%(title).120s.%(ext)s',
       sourceUrl
-    ]);
+    ];
+    if (ffmpegLocation) {
+      args.splice(2, 0, '--ffmpeg-location', ffmpegLocation);
+    }
+    await runCommand(ytDlpBinary, args);
     return;
   }
 
@@ -271,15 +291,18 @@ async function runDownload(sourceUrl, option, workDir) {
     '%(title).120s.%(ext)s',
     sourceUrl
   ];
+  if (ffmpegLocation) {
+    withSelectedFormat.splice(2, 0, '--ffmpeg-location', ffmpegLocation);
+  }
 
   try {
-    await runCommand('yt-dlp', withSelectedFormat);
+    await runCommand(ytDlpBinary, withSelectedFormat);
   } catch (error) {
     if (!option.formatId) {
       throw error;
     }
 
-    await runCommand('yt-dlp', [
+    const fallbackArgs = [
       '--no-playlist',
       '--no-warnings',
       '-f',
@@ -291,7 +314,11 @@ async function runDownload(sourceUrl, option, workDir) {
       '-o',
       '%(title).120s.%(ext)s',
       sourceUrl
-    ]);
+    ];
+    if (ffmpegLocation) {
+      fallbackArgs.splice(2, 0, '--ffmpeg-location', ffmpegLocation);
+    }
+    await runCommand(ytDlpBinary, fallbackArgs);
   }
 }
 
