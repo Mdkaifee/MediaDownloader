@@ -48,6 +48,8 @@ Backend (Web Service):
   - `CORS_ORIGINS=https://<your-frontend-domain>`
   - Optional `PUBLIC_BASE_URL=https://<your-backend-domain>`
   - Optional `YT_DLP_BIN=/opt/render/project/src/server/bin/yt-dlp`
+  - Optional `YT_DLP_COOKIES_FILE=/opt/render/project/src/server/cookies.txt`
+  - Optional `YT_DLP_COOKIES_B64=<base64 of Netscape cookies.txt>`
 
 Frontend (Static Site):
 - Root Directory: `client`
@@ -128,3 +130,8 @@ Current behavior:
 
 ## Legal and compliance
 Only download content you own or have permission to download. Respect each platform's Terms of Service and applicable copyright laws.
+
+## YouTube bot-check note
+If YouTube returns `Sign in to confirm you're not a bot`, provide auth cookies to yt-dlp:
+- Preferred on Render: set `YT_DLP_COOKIES_B64` (base64-encoded Netscape cookies file contents)
+- Alternative: set `YT_DLP_COOKIES_FILE` to an existing cookie file path

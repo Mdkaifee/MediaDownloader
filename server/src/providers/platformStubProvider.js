@@ -9,6 +9,7 @@ import ffmpegStatic from 'ffmpeg-static';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const downloadsRoot = path.resolve(__dirname, '../../tmp-downloads/platform');
+const runtimeConfigRoot = path.resolve(__dirname, '../../tmp-downloads/config');
 const localYtDlpBinary = path.resolve(__dirname, '../../bin/yt-dlp');
 const ytDlpBinary =
   process.env.YT_DLP_BIN || (existsSync(localYtDlpBinary) ? localYtDlpBinary : 'yt-dlp');
@@ -21,6 +22,7 @@ const platformRules = [
 ];
 
 let toolchainChecked = false;
+let cachedCookiesFilePath = '';
 
 function detectPlatform(url) {
   const hostname = new URL(url).hostname.toLowerCase();
@@ -60,6 +62,54 @@ function runCommand(binary, args) {
       );
     });
   });
+}
+
+async function resolveCookiesFilePath() {
+  if (process.env.YT_DLP_COOKIES_FILE) {
+    return process.env.YT_DLP_COOKIES_FILE;
+  }
+
+  if (cachedCookiesFilePath) {
+    return cachedCookiesFilePath;
+  }
+
+  const cookiesBase64 = process.env.YT_DLP_COOKIES_B64;
+  const cookiesText = process.env.YT_DLP_COOKIES_TXT;
+  if (!cookiesBase64 && !cookiesText) {
+    return '';
+  }
+
+  await fs.mkdir(runtimeConfigRoot, { recursive: true });
+  const cookiesFilePath = path.join(runtimeConfigRoot, 'yt-dlp-cookies.txt');
+  const content = cookiesBase64
+    ? Buffer.from(cookiesBase64, 'base64').toString('utf8')
+    : cookiesText;
+
+  await fs.writeFile(cookiesFilePath, content, { mode: 0o600 });
+  cachedCookiesFilePath = cookiesFilePath;
+  return cookiesFilePath;
+}
+
+async function buildYtDlpBaseArgs() {
+  const args = ['--no-playlist', '--no-warnings'];
+  const cookiesFilePath = await resolveCookiesFilePath();
+  if (cookiesFilePath) {
+    args.push('--cookies', cookiesFilePath);
+  }
+  return args;
+}
+
+function normalizeYtDlpError(error) {
+  const message = String(error?.message || error || '');
+  if (
+    message.includes('Sign in to confirm you’re not a bot') ||
+    message.includes('Use --cookies-from-browser or --cookies')
+  ) {
+    return new Error(
+      'YouTube currently requires auth cookies for this request. Set YT_DLP_COOKIES_FILE or YT_DLP_COOKIES_B64 on the backend service and redeploy.'
+    );
+  }
+  return error instanceof Error ? error : new Error(message);
 }
 
 async function assertBinary(binary, checkArgs, installHint) {
@@ -215,12 +265,9 @@ function buildMp4Options(formats) {
 }
 
 async function fetchMetadata(url) {
-  const { stdout } = await runCommand(ytDlpBinary, [
-    '--no-playlist',
-    '--no-warnings',
-    '-J',
-    url
-  ]);
+  const args = await buildYtDlpBaseArgs();
+  args.push('-J', url);
+  const { stdout } = await runCommand(ytDlpBinary, args);
 
   return parseMetadata(stdout);
 }
@@ -251,14 +298,14 @@ async function collectOutputFile(workDir, preferredExt) {
 }
 
 async function runDownload(sourceUrl, option, workDir) {
+  const baseArgs = await buildYtDlpBaseArgs();
   const ffmpegLocation =
     ffmpegBinary.includes('/') ? path.dirname(ffmpegBinary) : null;
 
   if (option.ext === 'mp3') {
     const bitrate = Number(option.audioBitrateKbps || 192);
     const args = [
-      '--no-playlist',
-      '--no-warnings',
+      ...baseArgs,
       '-f',
       'bestaudio/best',
       '--extract-audio',
@@ -280,8 +327,7 @@ async function runDownload(sourceUrl, option, workDir) {
   }
 
   const withSelectedFormat = [
-    '--no-playlist',
-    '--no-warnings',
+    ...baseArgs,
     '-f',
     option.formatId ? `${option.formatId}+bestaudio/best` : 'bestvideo+bestaudio/best',
     '--merge-output-format',
@@ -304,8 +350,7 @@ async function runDownload(sourceUrl, option, workDir) {
     }
 
     const fallbackArgs = [
-      '--no-playlist',
-      '--no-warnings',
+      ...baseArgs,
       '-f',
       'bestvideo+bestaudio/best',
       '--merge-output-format',
@@ -335,7 +380,12 @@ const platformStubProvider = {
     }
 
     await ensureToolchain();
-    const metadata = await fetchMetadata(url);
+    let metadata;
+    try {
+      metadata = await fetchMetadata(url);
+    } catch (error) {
+      throw normalizeYtDlpError(error);
+    }
     const title = metadata.title || `${platform.source} media`;
     const options =
       format === 'mp3'
@@ -353,7 +403,11 @@ const platformStubProvider = {
     const jobDir = path.join(downloadsRoot, randomUUID());
     await fs.mkdir(jobDir, { recursive: true });
 
-    await runDownload(sourceUrl, option, jobDir);
+    try {
+      await runDownload(sourceUrl, option, jobDir);
+    } catch (error) {
+      throw normalizeYtDlpError(error);
+    }
     const localFilePath = await collectOutputFile(jobDir, option.ext);
     const baseName = sanitizeBaseName(title || path.basename(localFilePath)) || 'media';
 
