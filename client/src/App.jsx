@@ -3,6 +3,16 @@ import { useMemo, useState } from 'react';
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL || 'https://mediadownloaderbackend.onrender.com'
 ).replace(/\/$/, '');
+const enableClientLogs = import.meta.env.VITE_CLIENT_LOGS !== 'false';
+
+function logClient(event, details) {
+  if (!enableClientLogs) return;
+  if (details !== undefined) {
+    console.log(`[MediaDownloader][${event}]`, details);
+    return;
+  }
+  console.log(`[MediaDownloader][${event}]`);
+}
 
 const initialState = {
   url: '',
@@ -31,6 +41,7 @@ function App() {
     setLoading(true);
     setError('');
     setAnalysis(null);
+    logClient('analyze:start', { format: form.format, apiBase: API_BASE || '(same-origin)' });
 
     try {
       const response = await fetch(apiUrl('/api/analyze'), {
@@ -40,15 +51,19 @@ function App() {
       });
 
       const data = await response.json();
+      logClient('analyze:response', { status: response.status, ok: response.ok, data });
       if (!response.ok) {
         throw new Error(data.error || 'Analyze failed');
       }
 
       setAnalysis(data);
+      logClient('analyze:success', { jobId: data.jobId, options: data.options?.length || 0 });
     } catch (err) {
+      logClient('analyze:error', { message: err.message });
       setError(err.message);
     } finally {
       setLoading(false);
+      logClient('analyze:end');
     }
   }
 
@@ -57,6 +72,7 @@ function App() {
 
     setDownloadLoadingId(optionId);
     setError('');
+    logClient('download:start', { jobId: analysis.jobId, optionId });
 
     try {
       const response = await fetch(apiUrl('/api/download-link'), {
@@ -66,6 +82,7 @@ function App() {
       });
 
       const data = await response.json();
+      logClient('download:response', { status: response.status, ok: response.ok, data });
       if (!response.ok) {
         throw new Error(data.error || 'Download link generation failed');
       }
@@ -77,10 +94,13 @@ function App() {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
+      logClient('download:success', { filename: data.filename, url: data.downloadUrl });
     } catch (err) {
+      logClient('download:error', { message: err.message });
       setError(err.message);
     } finally {
       setDownloadLoadingId('');
+      logClient('download:end');
     }
   }
 
