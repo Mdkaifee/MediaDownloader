@@ -61,6 +61,14 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'media-downloader-backend',
+    health: '/api/health'
+  });
+});
+
 app.post('/api/analyze', async (req, res) => {
   try {
     const { url, format } = req.body || {};
