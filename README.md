@@ -36,6 +36,8 @@ Install these binaries and keep them on your `PATH`:
 - `yt-dlp`
 - `ffmpeg`
 
+Note: Render deploy uses `ffmpeg-static` from npm and downloads `yt-dlp` into `server/bin`.
+
 ## Deploy on Render
 
 Backend (Web Service):

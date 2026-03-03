@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ffmpegStatic from 'ffmpeg-static';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,7 +12,7 @@ const downloadsRoot = path.resolve(__dirname, '../../tmp-downloads/platform');
 const localYtDlpBinary = path.resolve(__dirname, '../../bin/yt-dlp');
 const ytDlpBinary =
   process.env.YT_DLP_BIN || (existsSync(localYtDlpBinary) ? localYtDlpBinary : 'yt-dlp');
-const ffmpegBinary = process.env.FFMPEG_BIN || 'ffmpeg';
+const ffmpegBinary = process.env.FFMPEG_BIN || ffmpegStatic || 'ffmpeg';
 
 const platformRules = [
   { id: 'youtube', source: 'YouTube', hostContains: ['youtube.com', 'youtu.be'] },

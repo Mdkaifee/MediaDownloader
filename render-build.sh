@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Installing system dependencies..."
-if command -v apt-get >/dev/null 2>&1; then
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg curl ca-certificates
-else
-  echo "apt-get not available; expecting ffmpeg/curl preinstalled."
-fi
+echo "Installing npm dependencies..."
+npm install
 
 echo "Installing yt-dlp binary..."
 mkdir -p server/bin
-curl -fsSL \
-  https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-  -o server/bin/yt-dlp
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL \
+    https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    -o server/bin/yt-dlp
+elif command -v wget >/dev/null 2>&1; then
+  wget -q -O server/bin/yt-dlp \
+    https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
+else
+  echo "Error: neither curl nor wget is available to download yt-dlp." >&2
+  exit 1
+fi
 chmod +x server/bin/yt-dlp
-
-echo "Installing npm dependencies..."
-npm install
