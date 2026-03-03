@@ -36,6 +36,23 @@ Install these binaries and keep them on your `PATH`:
 - `yt-dlp`
 - `ffmpeg`
 
+## Deploy on Render
+
+Backend (Web Service):
+- Root Directory: `media-downloader-starter`
+- Build Command: `npm install`
+- Start Command: `npm run start -w server`
+- Environment variables:
+  - `CORS_ORIGINS=https://<your-frontend-domain>`
+  - Optional `PUBLIC_BASE_URL=https://<your-backend-domain>`
+
+Frontend (Static Site):
+- Root Directory: `media-downloader-starter/client`
+- Build Command: `npm install && npm run build`
+- Publish Directory: `dist`
+- Environment variables:
+  - `VITE_API_BASE_URL=https://<your-backend-domain>`
+
 This starts:
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:8787`

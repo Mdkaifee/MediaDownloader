@@ -13,9 +13,30 @@ import {
 import { findProvider } from './providers/index.js';
 
 const app = express();
-const port = 8787;
+const port = Number(process.env.PORT || 8787);
+const publicBaseUrl = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '');
+const originConfig =
+  process.env.CORS_ORIGINS ||
+  process.env.CORS_ORIGIN ||
+  'https://mediadownloaderapp-k3zo.onrender.com,http://localhost:5173';
+const allowedOrigins = originConfig
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+const allowAllOrigins = allowedOrigins.includes('*');
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.set('trust proxy', 1);
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (allowAllOrigins || !origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error('CORS blocked for this origin.'));
+    }
+  })
+);
 app.use(express.json());
 
 function safeFilename(input, fallbackExt) {
@@ -25,6 +46,15 @@ function safeFilename(input, fallbackExt) {
 
   if (cleaned.includes('.')) return cleaned;
   return `${cleaned}.${fallbackExt}`;
+}
+
+function buildBaseUrl(req) {
+  if (publicBaseUrl) return publicBaseUrl;
+  const host = req.get('host');
+  if (host) {
+    return `${req.protocol}://${host}`;
+  }
+  return `http://localhost:${port}`;
 }
 
 app.get('/api/health', (req, res) => {
@@ -114,7 +144,7 @@ app.post('/api/download-link', async (req, res) => {
         });
 
         return res.json({
-          downloadUrl: `http://localhost:${port}/api/download/${token}`,
+          downloadUrl: `${buildBaseUrl(req)}/api/download/${token}`,
           filename
         });
       }
@@ -172,5 +202,5 @@ app.get('/api/download/:token', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
+  console.log(`API listening on port ${port}`);
 });

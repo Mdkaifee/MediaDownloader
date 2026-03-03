@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 
-const API_BASE = 'http://localhost:8787';
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL || 'https://mediadownloaderbackend.onrender.com'
+).replace(/\/$/, '');
 
 const initialState = {
   url: '',
@@ -19,6 +21,10 @@ function App() {
     return `${analysis.title} • ${analysis.source}`;
   }, [analysis]);
 
+  function apiUrl(routePath) {
+    return API_BASE ? `${API_BASE}${routePath}` : routePath;
+  }
+
   async function handleAnalyze(event) {
     event.preventDefault();
     setLoading(true);
@@ -26,7 +32,7 @@ function App() {
     setAnalysis(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/analyze`, {
+      const response = await fetch(apiUrl('/api/analyze'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: form.url.trim(), format: form.format })
@@ -52,7 +58,7 @@ function App() {
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/download-link`, {
+      const response = await fetch(apiUrl('/api/download-link'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobId: analysis.jobId, optionId })
@@ -156,8 +162,7 @@ function App() {
         ) : (
           <section className="hint">
             <p>
-              Note: Only direct-file provider is implemented in this starter.
-              Platform adapters are scaffolded in the backend.
+              Using backend: <code>{API_BASE}</code>
             </p>
           </section>
         )}
