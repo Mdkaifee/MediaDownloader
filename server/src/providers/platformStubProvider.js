@@ -2,18 +2,29 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ffmpegStatic from 'ffmpeg-static';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+
+let ffmpegStaticBinary = '';
+try {
+  ffmpegStaticBinary = require('ffmpeg-static');
+} catch {
+  ffmpegStaticBinary = '';
+}
+
 const downloadsRoot = path.resolve(__dirname, '../../tmp-downloads/platform');
 const runtimeConfigRoot = path.resolve(__dirname, '../../tmp-downloads/config');
 const localYtDlpBinary = path.resolve(__dirname, '../../bin/yt-dlp');
 const ytDlpBinary =
   process.env.YT_DLP_BIN || (existsSync(localYtDlpBinary) ? localYtDlpBinary : 'yt-dlp');
-const ffmpegBinary = process.env.FFMPEG_BIN || ffmpegStatic || 'ffmpeg';
+const ffmpegBinary = process.env.FFMPEG_BIN || ffmpegStaticBinary || 'ffmpeg';
+const ytDlpExtractorArgs =
+  process.env.YT_DLP_EXTRACTOR_ARGS || 'youtube:player_client=android,web';
 
 const platformRules = [
   { id: 'youtube', source: 'YouTube', hostContains: ['youtube.com', 'youtu.be'] },
@@ -92,6 +103,9 @@ async function resolveCookiesFilePath() {
 
 async function buildYtDlpBaseArgs() {
   const args = ['--no-playlist', '--no-warnings'];
+  if (ytDlpExtractorArgs) {
+    args.push('--extractor-args', ytDlpExtractorArgs);
+  }
   const cookiesFilePath = await resolveCookiesFilePath();
   if (cookiesFilePath) {
     args.push('--cookies', cookiesFilePath);

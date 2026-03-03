@@ -15,6 +15,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [downloadLoadingId, setDownloadLoadingId] = useState('');
   const [error, setError] = useState('');
+  const isAnalyzing = loading;
 
   const selectedSummary = useMemo(() => {
     if (!analysis) return '';
@@ -103,6 +104,8 @@ function App() {
               required
               placeholder="https://example.com/video.mp4"
               value={form.url}
+              readOnly={isAnalyzing}
+              disabled={isAnalyzing}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, url: event.target.value }))
               }
@@ -113,6 +116,7 @@ function App() {
             Output
             <select
               value={form.format}
+              disabled={isAnalyzing}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, format: event.target.value }))
               }
